@@ -4,3 +4,4 @@ numpy
 pandas
 seaborn
 opencv-python-headless
+plotly
