@@ -273,20 +273,17 @@ elif page == "🔍 Deteksi Penyakit":
 
                 # === [BAGIAN YANG DIMODIFIKASI] ===
                 # 1. Tentukan ambang batas keyakinan (misalnya 70% atau 0.70). Anda bisa menyesuaikan angka ini.
-            AMBANG_BATAS = 0.80  # confidence minimal
-            SELISIH_MINIMAL = 0.15  # selisih antara top-1 dan top-2
+                AMBANG_BATAS = 0.70
 
-            # ambil prediksi lengkap
-            preds_full = model.predict(x_full)[0]
-            sorted_preds = np.sort(preds_full)[::-1]
-            top1 = sorted_preds[0]
-            top2 = sorted_preds[1]
-
-            if top1 < AMBANG_BATAS or (top1 - top2) < SELISIH_MINIMAL:
-             st.warning("⚠️ Gambar tidak jelas atau bukan ikan.")
+                # 2. Cek apakah keyakinan model di bawah ambang batas
+                if confidence < AMBANG_BATAS:
+                    st.divider()
+                    st.warning(f"⚠️ **Gambar Tidak Dapat Diidentifikasi sebagai Ikan**")
+                    st.info(f"Model hanya memiliki keyakinan sebesar **{confidence*100:.2f}%**. Ini terlalu rendah untuk memberikan hasil yang akurat.")
+                    st.markdown("Pastikan gambar yang diunggah adalah **foto ikan air tawar yang jelas** dan sesuai dengan tips di samping.")
                 
                 # 3. Jika keyakinan cukup tinggi, tampilkan hasilnya seperti biasa
-            else:
+                else:
                     # Simpan riwayat hanya jika deteksi berhasil
                     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                     save_path = os.path.join(HISTORY_DIR, f"{timestamp}_{label}.jpg")
