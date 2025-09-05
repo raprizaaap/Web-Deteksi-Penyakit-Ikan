@@ -63,7 +63,8 @@ class_labels = {
     "Fungal diseases Saprolegniasis": 3,
     "Healthy Fish": 4,
     "Parasitic diseases": 5,
-    "Viral diseases White tail disease": 6
+    "Viral diseases White tail disease": 6,
+    "bukan ikan": 7
 }
 idx_to_class = {v: k for k, v in class_labels.items()}
 
@@ -239,9 +240,9 @@ if page == "🏠 Beranda":
     st.markdown("<br><center>✨ Dibuat dengan ❤️ menggunakan Streamlit ✨</center>", unsafe_allow_html=True)
 
 
-# ======================
-# ----- HALAMAN DETEKSI (DENGAN LOGIKA PENOLAKAN) -----
-# ======================
+# ===================================================================
+# ----- HALAMAN DETEKSI (GANTIKAN DENGAN VERSI FINAL YANG INI) -----
+# ===================================================================
 elif page == "🔍 Deteksi Penyakit":
     st.title("🔍 Deteksi Penyakit Ikan")
     st.info("Unggah gambar ikan Anda untuk memulai deteksi. Untuk hasil terbaik, ikuti tips di samping.")
@@ -262,7 +263,7 @@ elif page == "🔍 Deteksi Penyakit":
         """)
 
     if uploaded_file is not None:
-        img = Image.open(uploaded_file).convert('RGB') # Pastikan gambar dalam format RGB
+        img = Image.open(uploaded_file).convert('RGB')
         with col1:
             st.image(img, caption="Gambar yang akan dideteksi", width=500) 
             
@@ -271,56 +272,38 @@ elif page == "🔍 Deteksi Penyakit":
                     pred_class, confidence = model_prediction(img)
                     label = idx_to_class[pred_class]
 
-                # === [BAGIAN YANG DIMODIFIKASI] ===
-                # 1. Tentukan ambang batas keyakinan (misalnya 70% atau 0.70). Anda bisa menyesuaikan angka ini.
-                AMBANG_BATAS = 0.70
+                    AMBANG_BATAS = 0.70
 
-                # 2. Cek apakah keyakinan model di bawah ambang batas
-                if confidence < AMBANG_BATAS:
-                    st.divider()
-                    st.warning(f"⚠️ **Gambar Tidak Dapat Diidentifikasi sebagai Ikan**")
-                    st.info(f"Model hanya memiliki keyakinan sebesar **{confidence*100:.2f}%**. Ini terlalu rendah untuk memberikan hasil yang akurat.")
-                    st.markdown("Pastikan gambar yang diunggah adalah **foto ikan air tawar yang jelas** dan sesuai dengan tips di samping.")
-                
-                # 3. Jika keyakinan cukup tinggi, tampilkan hasilnya seperti biasa
-                else:
-                    # Simpan riwayat hanya jika deteksi berhasil
-                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                    save_path = os.path.join(HISTORY_DIR, f"{timestamp}_{label}.jpg")
-                    img.save(save_path)
-                    
-                    # Logika untuk membuat grafik (tetap sama)
-                    import pandas as pd
-                    # Lakukan prediksi lagi untuk mendapatkan semua probabilitas (bukan hanya nilai max)
-                    x_full = np.expand_dims(np.array(img.resize((299, 299))) / 255.0, axis=0)
-                    preds_full = model.predict(x_full)[0]
+                    # 1. Cek PERTAMA: Apakah hasilnya adalah "bukan ikan"?
+                    if label == "bukan ikan":
+                        st.divider()
+                        st.error("❌ Gambar Tidak Valid")
+                        st.warning("Gambar yang Anda unggah tidak terdeteksi sebagai ikan. Mohon unggah foto ikan yang jelas sesuai dengan tips.")
+                        # TIDAK ADA KODE LAIN DI SINI
 
-                    df = pd.DataFrame({
-                        'Kelas': list(class_labels.keys()),
-                        'Probabilitas': preds_full
-                    }).sort_values(by='Probabilitas', ascending=False)
-                    
-                    fig = px.bar(
-                        df, x='Probabilitas', y='Kelas', orientation='h',
-                        title="Grafik Keyakinan per Kelas",
-                        labels={'Probabilitas': 'Tingkat Keyakinan', 'Kelas': 'Jenis Penyakit'},
-                        text_auto='.2%'
-                    )
-                    fig.update_layout(xaxis_range=[0,1])
-                    
-                    # Tampilkan grafik di kolom kedua
-                    with col2:
-                        col2.empty() 
-                        st.plotly_chart(fig, use_container_width=True)
+                    # 2. Cek KEDUA: Jika bukan "bukan ikan", apakah keyakinannya terlalu rendah?
+                    elif confidence < AMBANG_BATAS:
+                        st.divider()
+                        st.warning(f"⚠️ Model Ragu")
+                        st.info(f"Model hanya memiliki keyakinan sebesar {confidence*100:.2f}%. Ini terlalu rendah untuk memberikan hasil yang akurat.")
+                        st.markdown("Pastikan gambar yang diunggah adalah foto ikan air tawar yang jelas.")
+                        # TIDAK ADA KODE LAIN DI SINI
 
-                    # Tampilkan hasil deteksi
-                    st.divider()
-                    st.success(f"Hasil Deteksi: **{label}**")
-                    st.info(f"Tingkat Keyakinan: {confidence*100:.2f}%")
-                    
-                    saran = saran_pengobatan.get(label, "Tidak ada saran spesifik.")
-                    with st.expander("🔬 **Lihat Detail dan Saran Penanganan**"):
-                        st.markdown(saran)
+                    # 3. KETIGA: Jika lolos dua cek di atas, baru tampilkan hasil deteksi penyakit
+                    else:
+                        # Simpan riwayat hanya jika deteksi berhasil
+                        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                        save_path = os.path.join(HISTORY_DIR, f"{timestamp}_{label}.jpg")
+                        img.save(save_path)
+                        
+                        # Tampilkan hasil deteksi
+                        st.divider()
+                        st.success(f"Hasil Deteksi: **{label}**")
+                        st.info(f"Tingkat Keyakinan: {confidence*100:.2f}%")
+                        
+                        saran = saran_pengobatan.get(label, "Tidak ada saran spesifik.")
+                        with st.expander("🔬 **Lihat Detail dan Saran Penanganan**"):
+                            st.markdown(saran)
     else:
         # Jika tidak ada file yang diunggah, tampilkan contoh (opsional)
         st.divider()
