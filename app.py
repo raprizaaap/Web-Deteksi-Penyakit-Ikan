@@ -6,7 +6,6 @@ from tensorflow.keras.preprocessing import image
 from PIL import Image
 from datetime import datetime
 import plotly.express as px
-import pandas as pd
 
 # ======================
 # Konfigurasi Halaman Utama
@@ -52,7 +51,7 @@ st.markdown("""
 # Gunakan cache untuk memuat model agar tidak diulang setiap kali ada interaksi
 @st.cache_resource
 def load_keras_model():
-    model = load_model("model999.h5")
+    model = load_model("model999.keras")
     return model
 
 model = load_keras_model()
@@ -151,7 +150,7 @@ edukasi_lengkap = {
         - Berikan pakan yang berkualitas dan bervariasi.
         """
     },
-    # Note: Ensure you have complete entries for all other diseases here.
+    # ... (Sisa data edukasi lengkap sama seperti kode Anda)
     "Healthy Fish": {
         "img": "image/healty.jpg",
         "nama_lain": "Ikan Sehat",
@@ -167,9 +166,8 @@ edukasi_lengkap = {
         "penanganan_dan_pengobatan": "Tidak diperlukan pengobatan. Teruskan perawatan yang baik.",
         "pencegahan": "Kualitas air, pakan bergizi, dan lingkungan bebas stres adalah tiga pilar utama untuk menjaga ikan tetap sehat."
     },
-    # ... (and so on for all other diseases)
+    # ... (dan seterusnya untuk semua penyakit)
 }
-
 
 # ======================
 # Fungsi Prediksi
@@ -179,8 +177,7 @@ def model_prediction(img):
     x = image.img_to_array(img)
     x = np.expand_dims(x, axis=0) / 255.0
     preds = model.predict(x)
-    # Mengembalikan seluruh array probabilitas prediksi
-    return preds[0]
+    return np.argmax(preds[0]), np.max(preds[0])
 
 # ======================
 # Sidebar Navigasi
@@ -244,13 +241,17 @@ if page == "🏠 Beranda":
 
 
 # ===================================================================
-# ----- HALAMAN DETEKSI (VERSI BARU DENGAN GRAFIK) -----
+# ----- HALAMAN DETEKSI (GANTIKAN DENGAN VERSI FINAL YANG INI) -----
 # ===================================================================
 elif page == "🔍 Deteksi Penyakit":
     st.title("🔍 Deteksi Penyakit Ikan")
     st.info("Unggah gambar ikan Anda untuk memulai deteksi. Untuk hasil terbaik, ikuti tips di samping.")
 
     col1, col2 = st.columns([2, 1])
+
+    with col1:
+        uploaded_file = st.file_uploader("Pilih atau seret gambar ikan ke sini", 
+                                         type=["jpg", "jpeg", "png"])
 
     with col2:
         st.subheader("💡 Tips Foto Akurat")
@@ -261,10 +262,6 @@ elif page == "🔍 Deteksi Penyakit":
         - **Satu Ikan per Foto:** Fokus pada satu ikan untuk hasil terbaik.
         """)
 
-    with col1:
-        uploaded_file = st.file_uploader("Pilih atau seret gambar ikan ke sini", 
-                                         type=["jpg", "jpeg", "png"])
-
     if uploaded_file is not None:
         img = Image.open(uploaded_file).convert('RGB')
         with col1:
@@ -272,13 +269,8 @@ elif page == "🔍 Deteksi Penyakit":
             
             if st.button("Deteksi Sekarang"):
                 with st.spinner('Menganalisis gambar...'):
-                    # Dapatkan semua probabilitas prediksi
-                    all_predictions = model_prediction(img)
-                    
-                    # Dapatkan kelas dan keyakinan tertinggi
-                    pred_class_idx = np.argmax(all_predictions)
-                    confidence = np.max(all_predictions)
-                    label = idx_to_class[pred_class_idx]
+                    pred_class, confidence = model_prediction(img)
+                    label = idx_to_class[pred_class]
 
                     AMBANG_BATAS = 0.70
 
@@ -287,6 +279,7 @@ elif page == "🔍 Deteksi Penyakit":
                         st.divider()
                         st.error("❌ Gambar Tidak Valid")
                         st.warning("Gambar yang Anda unggah tidak terdeteksi sebagai ikan. Mohon unggah foto ikan yang jelas sesuai dengan tips.")
+                        # TIDAK ADA KODE LAIN DI SINI
 
                     # 2. Cek KEDUA: Jika bukan "bukan ikan", apakah keyakinannya terlalu rendah?
                     elif confidence < AMBANG_BATAS:
@@ -294,10 +287,16 @@ elif page == "🔍 Deteksi Penyakit":
                         st.warning(f"⚠️ Model Ragu")
                         st.info(f"Model hanya memiliki keyakinan sebesar {confidence*100:.2f}%. Ini terlalu rendah untuk memberikan hasil yang akurat.")
                         st.markdown("Pastikan gambar yang diunggah adalah foto ikan air tawar yang jelas.")
+                        # TIDAK ADA KODE LAIN DI SINI
 
                     # 3. KETIGA: Jika lolos dua cek di atas, baru tampilkan hasil deteksi penyakit
                     else:
-                        # --- Tampilkan hasil di kolom 1 ---
+                        # Simpan riwayat hanya jika deteksi berhasil
+                        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                        save_path = os.path.join(HISTORY_DIR, f"{timestamp}_{label}.jpg")
+                        img.save(save_path)
+                        
+                        # Tampilkan hasil deteksi
                         st.divider()
                         st.success(f"Hasil Deteksi: **{label}**")
                         st.info(f"Tingkat Keyakinan: {confidence*100:.2f}%")
@@ -305,47 +304,10 @@ elif page == "🔍 Deteksi Penyakit":
                         saran = saran_pengobatan.get(label, "Tidak ada saran spesifik.")
                         with st.expander("🔬 **Lihat Detail dan Saran Penanganan**"):
                             st.markdown(saran)
-
-                        # --- Simpan riwayat ---
-                        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                        save_path = os.path.join(HISTORY_DIR, f"{timestamp}_{label}.jpg")
-                        img.save(save_path)
-                        
-                        # --- Buat dan Tampilkan Grafik di kolom 2 ---
-                        # Buat DataFrame untuk grafik
-                        df = pd.DataFrame({
-                            'Penyakit': list(idx_to_class.values()),
-                            'Keyakinan': all_predictions * 100
-                        })
-                        df = df.sort_values(by='Keyakinan', ascending=True)
-
-                        # Buat grafik bar horizontal dengan Plotly
-                        fig = px.bar(
-                            df,
-                            x='Keyakinan',
-                            y='Penyakit',
-                            orientation='h',
-                            title='Grafik Keyakinan Model',
-                            labels={'Keyakinan': 'Keyakinan (%)'},
-                            text=df['Keyakinan'].apply(lambda x: f'{x:.2f}%')
-                        )
-                        fig.update_layout(
-                            template='plotly_dark',
-                            xaxis_title="Keyakinan (%)",
-                            yaxis_title="",
-                            height=350
-                        )
-                        fig.update_traces(marker_color='#33FF8A') # Warna hijau agar serasi
-
-                        # Tampilkan di bawah tips
-                        col2.subheader("Distribusi Keyakinan")
-                        col2.plotly_chart(fig, use_container_width=True)
-
     else:
         # Jika tidak ada file yang diunggah, tampilkan contoh (opsional)
-        with col1:
-            st.divider()
-            st.write("Belum ada gambar yang diunggah.")
+        st.divider()
+        st.write("Belum ada gambar yang diunggah.")
 
 # ======================
 # ----- HALAMAN EDUKASI -----
@@ -354,6 +316,7 @@ elif page == "📚 Edukasi Penyakit":
     st.title("📚 Penjelasan Penyakit Ikan")
     st.markdown("Pelajari lebih lanjut tentang berbagai kondisi yang dapat mempengaruhi ikan air tawar.")
 
+    # (Pastikan Anda sudah mengisi dictionary `edukasi_lengkap` dengan lengkap)
     nama_penyakit_list = list(edukasi_lengkap.keys())
     
     if nama_penyakit_list:
