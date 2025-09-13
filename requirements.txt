@@ -7,4 +7,3 @@ matplotlib
 Pillow
 opencv-python-headless
 plotly
-h5py
